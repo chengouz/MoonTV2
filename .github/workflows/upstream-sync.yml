@@ -1,43 +1,48 @@
-name: Upstream Sync
+name: Sync fork with upstream
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # run every 6 hours
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
-  actions: write
+
+env:
+  UPSTREAM_REPOSITORY: Stardm0/MoonTV
+  UPSTREAM_BRANCH: main
+  TARGET_BRANCH: main
 
 jobs:
-  sync_latest_from_upstream:
-    name: Sync latest commits from upstream repo
+  sync:
+    name: Sync fork
     runs-on: ubuntu-latest
-    if: ${{ github.event.repository.fork }}
 
     steps:
-      - name: Checkout target repo
+      - name: Checkout target branch
         uses: actions/checkout@v4
-
-      - name: Sync upstream changes
-        id: sync
-        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
         with:
-          upstream_sync_repo: Stardm0/MoonTV
-          upstream_sync_branch: main
-          target_sync_branch: main
-          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
 
-      - name: Sync check
-        if: failure()
+      - name: Configure Git
         run: |
-          echo "[Error] Due to a change in the workflow file of the upstream repository, GitHub has automatically suspended the scheduled automatic update. You need to manually sync your fork."
-          exit 1
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Delete workflow runs
-        uses: Mattraks/delete-workflow-runs@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          retain_days: 0
-          keep_minimum_runs: 2
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/${{ env.UPSTREAM_REPOSITORY }}.git
+          git remote -v
+
+      - name: Fetch upstream
+        run: |
+          git fetch upstream ${{ env.UPSTREAM_BRANCH }}
+
+      - name: Merge upstream into fork
+        run: |
+          git merge upstream/${{ env.UPSTREAM_BRANCH }}
+
+      - name: Push changes
+        run: |
+          git push origin ${{ env.TARGET_BRANCH }}
